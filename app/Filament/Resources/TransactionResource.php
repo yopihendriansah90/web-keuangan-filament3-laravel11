@@ -2,16 +2,18 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\TransactionResource\Pages;
-use App\Filament\Resources\TransactionResource\RelationManagers;
-use App\Models\Transaction;
 use Filament\Forms;
-use Filament\Forms\Form;
-use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Forms\Form;
 use Filament\Tables\Table;
+use App\Models\Transaction;
+use Illuminate\Support\Str;
+use Filament\Resources\Resource;
+use Filament\Tables\Columns\IconColumn;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use App\Filament\Resources\TransactionResource\Pages;
+use App\Filament\Resources\TransactionResource\RelationManagers;
 
 class TransactionResource extends Resource
 {
@@ -28,13 +30,16 @@ class TransactionResource extends Resource
                     ->maxLength(255),
                 Forms\Components\Select::make('category_id')
                     ->relationship('category', 'name')
+                    ->preload()
+                    ->searchable()
                     ->required(),
-                Forms\Components\DatePicker::make('date')
+                Forms\Components\DatePicker::make('date_transaction')
                     ->required(),
                 Forms\Components\TextInput::make('amount')
+                    ->prefix('Rp. ')
                     ->required()
                     ->numeric(),
-                Forms\Components\TextInput::make('note')
+                Forms\Components\Textarea::make('note')
                     ->required()
                     ->maxLength(255),
                 Forms\Components\FileUpload::make('image')
@@ -48,26 +53,45 @@ class TransactionResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')
-                    ->searchable(),
+                    ->searchable()
+                    ->formatStateUsing(function ($record) {
+                        return Str::title($record->name);
+                    }),
                 Tables\Columns\TextColumn::make('category.name')
                     ->numeric()
-                    ->sortable(),
+                    ->formatStateUsing(fn($record) => Str::title($record->category->name))
+                    ->sortable()
+                    ->tooltip(fn($record):string=> $record->category->name)
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('category.is_expense')
                     ->label('Transaction Type')
-                    ->getStateUsing(function($record){
-                        return $record->is_expanse ? 'Pengeluaran':'Pemasukan';
+                    ->getStateUsing(function ($record) {
+                        if ($record->category->is_expense) {
+                            return 'Pengeluaran';
+                        }
+                        return 'Pemasukan';
+                    })
+                    ->badge()
+                    ->icon(fn($record) => $record->category->is_expense ?  'heroicon-o-arrow-down-right': 'heroicon-o-arrow-up-right')
+                    ->color(function ($record) {
+                        if ($record->category->is_expense) {
+                            return 'danger';
+                        }
+                        return 'success';
                     })
                     ->sortable(),
-                Tables\Columns\TextColumn::make('date')
-                    ->date()
+                Tables\Columns\TextColumn::make('date_transaction')
+                    ->date("d/m/Y")
                     ->sortable(),
                 Tables\Columns\TextColumn::make('amount')
-                    ->numeric()
+                    ->money('IDR',locale:'id')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('note')
+                    ->limit(10)
+                    ->tooltip(fn($record):string=> $record->note)
                     ->searchable(),
                 Tables\Columns\ImageColumn::make('image')
-                ->visibility('public'),
+                    ->visibility('public'),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -78,10 +102,12 @@ class TransactionResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
+                
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Attribute;
+use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,11 +14,12 @@ class Transaction extends Model
     protected $fillable=[
         'name',
         'category_id',
-        'date',
+        'date_transaction',
         'note',
         'amount',
         'image'
     ];
+
 
     /**
      * Get the user that owns the Transaction
@@ -27,4 +30,21 @@ class Transaction extends Model
     {
         return $this->belongsTo(Category::class);
     }
+
+    public function scopeExpanses($query)
+    {
+        return $query->whereHas('category', function($query){
+            $query->where('is_expense',true);
+        });
+    }
+
+        public function scopeIncomes($query)
+    {
+        return $query->whereHas('category', function($query){
+            $query->where('is_expense',false);
+        });
+    }
+
+
+    
 }
